@@ -114,7 +114,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex justify-center gap-4">
             <a
-              href="#"
+              href="/ayn"
               className="rounded-md bg-blue-600 px-6 py-3 text-lg font-semibold text-white shadow-md hover:bg-blue-500 transition"
             >
               Get Started
