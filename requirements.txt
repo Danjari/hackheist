@@ -4,7 +4,7 @@ torchvision
 torchaudio 
 opencv-python 
 numpy 
-openai 
+openai ==0.28.0
 python-dotenv 
 pillow
 pandas
