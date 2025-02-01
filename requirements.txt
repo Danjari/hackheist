@@ -1,0 +1,11 @@
+flask 
+torch 
+torchvision 
+torchaudio 
+opencv-python 
+numpy 
+openai 
+python-dotenv 
+pillow
+pandas
+requests
