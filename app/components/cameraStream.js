@@ -1,5 +1,3 @@
-
-
 import { useEffect, useRef, useState } from "react";
 
 const BACKEND_URL = "api/describe"; 
@@ -7,6 +5,7 @@ const CameraStream = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const startCamera = async () => {
@@ -50,14 +49,16 @@ const CameraStream = () => {
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    const imageData = canvas.toDataURL("image/jpeg"); // Convert frame to base64
-    return imageData.split(",")[1]; // Remove metadata prefix
+    const imageData = canvas.toDataURL("image/jpeg");
+    return imageData.split(",")[1];
   };
 
   // 🔥 Send Image to Backend for Scene Description
   const describeScene = async () => {
     const frame = captureFrame();
     if (!frame) return alert("Failed to capture frame.");
+
+    setLoading(true); // Set loading to true when the request starts
 
     try {
       const response = await fetch(`/api/describe`, {
@@ -67,9 +68,24 @@ const CameraStream = () => {
       });
 
       const data = await response.json();
+      console.log("Backend response:", data);
+
       setDescription(data.sceneDescription);
+
+      // Fetch the audio file as a blob
+      const audioResponse = await fetch(data.audioUrl);
+      const audioBlob = await audioResponse.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      console.log("Audio URL:", audioUrl);
+
+      // Play the audio file using the Object URL
+      const audio = new Audio(audioUrl);
+      audio.play();
     } catch (error) {
       console.error("Error fetching description:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -78,13 +94,14 @@ const CameraStream = () => {
       <h1 className="text-lg font-semibold mb-4">Live Camera Stream</h1>
       
       <video ref={videoRef} autoPlay playsInline className="w-full max-h-[80vh] rounded-lg" />
-      <canvas ref={canvasRef} className="hidden" /> {/* Used for capturing frames */}
+      <canvas ref={canvasRef} className="hidden" />
 
       <button
         onClick={describeScene}
         className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-md"
+        style={{ position: 'relative' }}
       >
-        Describe Scene
+        {loading ? "Loading..." : "Describe Scene"}
       </button>
 
       {description && (

@@ -8,6 +8,8 @@ import os
 from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
+from openai import OpenAI
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
@@ -86,23 +88,48 @@ def get_nearby_object(image, objects, threshold=float('inf')):
 
 
 def generate_description(objects):
-    openai.api_key = os.getenv('OPENAI_API_KEY')
+    # Initialize OpenAI client
+    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
     
     if not objects:
         return "No objects detected."
     
+    # Create a list of object descriptions
     object_descriptions = [f"{obj['name']} is in the scene." for obj in objects]
+    # Formulate the prompt for the AI
     prompt = "Describe the scene in a detailed yet concise way, left to right order:\n" + "\n".join(object_descriptions)
     
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": "You are a helpful AI."},
-                      {"role": "user", "content": prompt}]
+        # Generate text description using OpenAI's ChatCompletion
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful AI."},
+                {"role": "user", "content": prompt}
+            ]
         )
-        return response["choices"][0]["message"]["content"].strip()
+        
+        # Extract the generated description
+        description = completion.choices[0].message.content.strip()
+        
+        # Define the path for the output audio file
+        speech_file_path = Path(__file__).parent / "speech.mp3"
+        print("Generated speech file path:", speech_file_path)
+        
+        # Generate speech from the description using OpenAI's TTS
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=description
+        )
+        
+        # Stream the audio response to a file
+        response.stream_to_file(speech_file_path)
+        
+        return str(speech_file_path)
     except Exception as e:
-        return f"Error generating description: {e}"
+        print("Error generating description or speech:", e)
+        return f"Error generating description or speech: {e}"
 
 
 @app.route('/api/checkForNearBy/', methods=['POST'])
