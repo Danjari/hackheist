@@ -4,7 +4,7 @@ const CameraStream = () => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const [description, setDescription] = useState(""); // ✅ Re-added state
-    const [audioUrl, setAudioUrl] = useState(null);
+    const [audioContent, setAudioContent] = useState(null);
     const [isMonitoring, setIsMonitoring] = useState(false);
     const audioRef = useRef(null); // ✅ Added reference for audio element
 
@@ -72,15 +72,16 @@ const CameraStream = () => {
             if (data.description) {
                 setDescription(data.description);
             }
-                  if (data.sceneDescription.audio_url) {
-            const fullAudioUrl = `http://127.0.0.1:5050${data.sceneDescription.audio_url.startsWith("/") ? data.sceneDescription.audio_url : "/static/speech.mp3"}`;
-            setAudioUrl(fullAudioUrl);
-
-            console.log("🎵 Audio URL:", fullAudioUrl); // Log the URL before playing
-            console.log("🎧 Trying to play audio...");
             
-            // ✅ Ensure audio plays after setting URL
-            setTimeout(() => playAudio(fullAudioUrl), 500);
+            if (data.sceneDescription.audio_content) {
+                const audioContent = data.sceneDescription.audio_content;
+                setAudioContent(audioContent);
+
+                console.log("🎵 Audio Content:", audioContent); // Log the URL before playing
+                console.log("🎧 Trying to play audio...");
+                
+                // ✅ Ensure audio plays after setting URL
+                setTimeout(() => playAudio(audioContent), 500);
         } else {
             console.warn("⚠️ No audio URL in response");
         }
@@ -90,9 +91,9 @@ const CameraStream = () => {
     };
 
     // 🔊 Function to Play Audio
-    const playAudio = (url) => {
+    const playAudio = (content) => {
         if (audioRef.current) {
-            audioRef.current.src = url;
+            audioRef.current.src = content;
             audioRef.current.play().catch(err => console.error("Error playing audio:", err));
         }
     };
@@ -161,9 +162,9 @@ const CameraStream = () => {
             {/* Audio Element for Playback */}
             <audio ref={audioRef} className="hidden" />
 
-            {/* Button to Play Audio (Only shows if audioUrl is available) */}
-            {audioUrl && (
-                <button onClick={() => playAudio(audioUrl)} className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md">
+            {/* Button to Play Audio (Only shows if audioContent is available) */}
+            {audioContent && (
+                <button onClick={() => playAudio(audioContent)} className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md">
                     🔊 Play Description
                 </button>
             )}

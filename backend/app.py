@@ -16,7 +16,6 @@ from flask import send_from_directory
 load_dotenv()
 
 app = Flask(__name__)
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Load YOLOv5
@@ -69,70 +68,31 @@ def detect_objects(image):
     return objects
 
 
-def get_nearby_object(image, objects, threshold=float('inf')):
+def get_nearby_object(image, objects, threshold = float('inf')):
     depth_map = estimate_depth(image)
     depth_map = depth_map.max() - depth_map
-    
-    min_depth = float('inf')
-    nearby_object = None
+    nearby_object = []
     
     for obj in objects:
-        obj_depth = depth_map[obj['ymin']:obj['ymax'], obj['xmin']:obj['xmax']]
-        median_depth = np.median(obj_depth)
+        xmin, ymin, xmax, ymax = map(int, [obj['xmin'],obj['ymin'], obj['xmax'], obj['ymax']])
+        object_depth = depth_map[ymin:ymax, xmin:xmax]
+        median_depth = np.median(object_depth)
+        object_name = obj['name']
         
-        if median_depth < min_depth:
-            min_depth = median_depth
-            nearby_object = obj
-            nearby_object['median_depth'] = median_depth
-    
-    return nearby_object if min_depth < threshold else None 
+        if median_depth > threshold:
+            continue
 
+        nearby_object.append({
+            "name": object_name,
+            "xmin": xmin,
+            "ymin": ymin,
+            "xmax": xmax,
+            "ymax": ymax,
+            "median_depth": median_depth
+        })
 
-# def generate_description(objects):
-#     # Initialize OpenAI client
-#     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    return nearby_object
     
-#     if not objects:
-#         return "No objects detected."
-    
-#     # Create a list of object descriptions
-#     object_descriptions = [f"{obj['name']} is in the scene." for obj in objects]
-#     # Formulate the prompt for the AI
-#     prompt = "Describe the scene in a detailed yet concise way, left to right order:\n" + "\n".join(object_descriptions)
-    
-#     try:
-#         # Generate text description using OpenAI's ChatCompletion
-#         completion = client.chat.completions.create(
-#             model="gpt-4o",
-#             messages=[
-#                 {"role": "system", "content": "You are a helpful AI."},
-#                 {"role": "user", "content": prompt}
-#             ]
-#         )
-        
-#         # Extract the generated description
-#         description = completion.choices[0].message.content.strip()
-        
-#         # Define the path for the output audio file
-#         speech_file_path = Path(__file__).parent / "speech.mp3"
-#         print("Generated speech file path:", speech_file_path)
-        
-#         # Generate speech from the description using OpenAI's TTS
-#         response = client.audio.speech.create(
-#             model="tts-1",
-#             voice="alloy",
-#             input=description
-#         )
-        
-#         # Stream the audio response to a file
-#         response.stream_to_file(speech_file_path)
-        
-#         return str(speech_file_path)
-#     except Exception as e:
-#         print("Error generating description or speech:", e)
-#         return f"Error generating description or speech: {e}"
-
-
 
 def generate_description(objects):
     # Initialize OpenAI client
@@ -142,13 +102,17 @@ def generate_description(objects):
     if not objects:
         return "No objects detected."
     
-    object_descriptions = [f"{obj['name']} is in the scene." for obj in objects]
-    prompt = "Describe the scene in a detailed yet concise way, left to right order:\n" + "\n".join(object_descriptions)
+    object_descriptions = [f"{obj['name']} is in the in front of the user at {(obj['xmin'] + obj['xmax']) / 2.0} X {(obj['ymin'] + obj['ymax']) / 2.0} Y coordinate with a distance of {obj['median_depth']}." for obj in objects]
+    prompt = '''You are a helpful assistant for visually impaired users. You are given a set of objects detected in a scene, along with their approximate X and Y coordinates and relative distances from the camera.
+
+        Your task:
+
+        Create a clear, concise, and auditory-friendly description of the scene in front of the user that can help the user build a mental picture.
+        Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects.  Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions :\n''' 
+    
+    prompt += '\n'.join(map(str, object_descriptions))
     
     try:
-        static_dir = Path(__file__).parent / "static"
-        static_dir.mkdir(parents=True, exist_ok=True) 
-
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -158,24 +122,69 @@ def generate_description(objects):
         )
         
         description = completion.choices[0].message.content.strip()
-        
-        # Save the audio file inside the 'static' folder
-        speech_file_path = Path(__file__).parent / "static" / "speech.mp3"
-        
+                
         response = client.audio.speech.create(
             model="tts-1",
             voice="alloy",
             input=description
         )
         
-        response.stream_to_file(speech_file_path)
-        
+        audio_bytes = BytesIO(response.content).getvalue()
+        base64_audio = base64.b64encode(audio_bytes).decode('utf-8')
+
         # Return the public URL of the audio file
-        return {"description": description, "audio_url": f"/static/speech.mp3"}
+        return {"description": description, "audio_content": f'data:audio/wav;base64,{base64_audio}'}
     except Exception as e:
         print("Error generating description or speech:", e)
         return {"error": f"Error generating description or speech: {e}"}
     
+
+def generate_immediate_description(objects):
+    # Initialize OpenAI client
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    
+    if not objects:
+        return "No objects detected."
+
+    object_descriptions = [
+            f"{obj['name']} is in the in front of the user at {(obj['xmin'] + obj['xmax']) / 2.0} X {(obj['ymin'] + obj['ymax']) / 2.0} Y coordinate with a distance of {obj['median_depth']}."
+            for obj in objects
+        ]
+    
+    print("Object description ", object_descriptions)
+    prompt = '''You are a helpful assistant for visually impaired users. You are given a set of objects detected in front of the user, along with their approximate X and Y coordinates and relative distances from the camera.
+
+    Your task:
+
+    Create a clear, concise, and auditory-friendly description of the nearest object first to warn the user and the scene that can help the user build a mental picture.
+    Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects. Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions :\n''' 
+    prompt += '\n'.join(map(str, object_descriptions))
+    
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful AI."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        description = completion.choices[0].message.content.strip()
+                
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice="alloy",
+            input=description
+        )
+        
+        audio_bytes = BytesIO(response.content).getvalue()
+        base64_audio = base64.b64encode(audio_bytes).decode('utf-8')
+
+        return {"description": description, "audio_content": f'data:audio/wav;base64,{base64_audio}'}
+    except Exception as e:
+        print("Error generating description or speech:", e)
+        return {"error": f"Error generating description or speech: {e}"}
+
 
 @app.route('/api/checkForNearBy/', methods=['POST'])
 def check_for_nearby():
@@ -183,10 +192,10 @@ def check_for_nearby():
     frame = decode_image(data.get("frame"))
     
     objects = detect_objects(frame)
-    nearby_object = get_nearby_object(frame, objects, 1000)
+    nearby_object = get_nearby_object(frame, objects, threshold=1800)
     
-    if nearby_object:
-        object_description = generate_description([nearby_object])
+    if len(nearby_object) > 0:
+        object_description = generate_immediate_description(nearby_object)
         return jsonify({
             "nearByObject": True,
             "objectDescription": object_description
@@ -204,7 +213,8 @@ def describe_scene():
     frame = decode_image(data.get("frame"))
     
     objects = detect_objects(frame)
-    scene_description = generate_description(objects)
+    nearby_object = get_nearby_object(frame, objects)
+    scene_description = generate_description(nearby_object)
     
     return jsonify({
         "sceneDescription": scene_description
