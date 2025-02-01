@@ -6,7 +6,8 @@ const CameraStream = () => {
     const [description, setDescription] = useState(""); // ✅ Re-added state
     const [audioContent, setAudioContent] = useState(null);
     const [isMonitoring, setIsMonitoring] = useState(false);
-    const audioRef = useRef(null); // ✅ Added reference for audio element
+    const [loading, setLoading] = useState(false); 
+    const audioRef = useRef(null); 
 
     useEffect(() => {
         const startCamera = async () => {
@@ -17,7 +18,7 @@ const CameraStream = () => {
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: "environment" }, // Use back camera
+                    video: { facingMode: "environment" }, 
                 });
 
                 if (videoRef.current) {
@@ -50,14 +51,16 @@ const CameraStream = () => {
 
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        const imageData = canvas.toDataURL("image/jpeg"); // Convert frame to base64
-        return imageData.split(",")[1]; // Remove metadata prefix
+        const imageData = canvas.toDataURL("image/jpeg");
+        return imageData.split(",")[1];
     };
 
     // 🔥 Send Image to Backend for Scene Description
     const describeScene = async () => {
         const frame = captureFrame();
         if (!frame) return alert("Failed to capture frame.");
+
+        setLoading(true); // ✅ Show loading indicator
 
         try {
             const response = await fetch("/api/describe", {
@@ -67,7 +70,7 @@ const CameraStream = () => {
             });
 
             const data = await response.json();
-            console.log("✅ Received data:", data); // Debugging
+            console.log("✅ Received data:", data);
 
             if (data.description) {
                 setDescription(data.description);
@@ -87,6 +90,8 @@ const CameraStream = () => {
         }
         } catch (error) {
             console.error("Error fetching description:", error);
+        } finally {
+            setLoading(false); // ✅ Hide loading indicator
         }
     };
 
@@ -104,7 +109,7 @@ const CameraStream = () => {
         if (!frame) return;
 
         try {
-            const response = await fetch("/api/checkForNearBy", {  // Call Flask API
+            const response = await fetch("/api/checkForNearBy", {  
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ frame }),
