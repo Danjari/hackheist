@@ -66,7 +66,7 @@ def detect_objects(image):
     return objects
 
 
-def get_nearby_object(image, objects):
+def get_nearby_object(image, objects, threshold=float('inf')):
     depth_map = estimate_depth(image)
     depth_map = depth_map.max() - depth_map
     
@@ -82,7 +82,7 @@ def get_nearby_object(image, objects):
             nearby_object = obj
             nearby_object['median_depth'] = median_depth
     
-    return nearby_object if min_depth < 1000 else None  # Adjust threshold as needed
+    return nearby_object if min_depth < threshold else None 
 
 
 def generate_description(objects):
@@ -111,7 +111,7 @@ def check_for_nearby():
     frame = decode_image(data.get("frame"))
     
     objects = detect_objects(frame)
-    nearby_object = get_nearby_object(frame, objects)
+    nearby_object = get_nearby_object(frame, objects, 1000)
     
     if nearby_object:
         object_description = generate_description([nearby_object])
@@ -140,5 +140,4 @@ def describe_scene():
 
 
 if __name__ == '__main__':
-
     app.run(host='0.0.0.0',port=5050,debug=True)
