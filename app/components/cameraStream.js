@@ -1,116 +1,181 @@
 import { useEffect, useRef, useState } from "react";
 
-const BACKEND_URL = "api/describe"; 
 const CameraStream = () => {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const [description, setDescription] = useState(""); // ✅ Re-added state
+    const [audioUrl, setAudioUrl] = useState(null);
+    const [isMonitoring, setIsMonitoring] = useState(false);
+    const audioRef = useRef(null); // ✅ Added reference for audio element
 
-  useEffect(() => {
-    const startCamera = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error("Camera not supported in this browser.");
-        return;
-      }
+    useEffect(() => {
+        const startCamera = async () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error("Camera not supported in this browser.");
+                return;
+            }
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }, // Use back camera
-        });
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment" }, // Use back camera
+                });
 
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+            } catch (error) {
+                console.error("Error accessing camera:", error);
+            }
+        };
+
+        startCamera();
+
+        return () => {
+            if (videoRef.current?.srcObject) {
+                videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, []);
+
+    // 🖼️ Capture Frame and Convert to Base64
+    const captureFrame = () => {
+        const canvas = canvasRef.current;
+        const video = videoRef.current;
+
+        if (!canvas || !video) return null;
+
+        const context = canvas.getContext("2d");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        const imageData = canvas.toDataURL("image/jpeg"); // Convert frame to base64
+        return imageData.split(",")[1]; // Remove metadata prefix
+    };
+
+    // 🔥 Send Image to Backend for Scene Description
+    const describeScene = async () => {
+        const frame = captureFrame();
+        if (!frame) return alert("Failed to capture frame.");
+
+        try {
+            const response = await fetch("/api/describe", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ frame }),
+            });
+
+            const data = await response.json();
+            console.log("✅ Received data:", data); // Debugging
+
+            if (data.description) {
+                setDescription(data.description);
+            }
+                  if (data.sceneDescription.audio_url) {
+            const fullAudioUrl = `http://127.0.0.1:5050${data.sceneDescription.audio_url.startsWith("/") ? data.sceneDescription.audio_url : "/static/speech.mp3"}`;
+            setAudioUrl(fullAudioUrl);
+
+            console.log("🎵 Audio URL:", fullAudioUrl); // Log the URL before playing
+            console.log("🎧 Trying to play audio...");
+            
+            // ✅ Ensure audio plays after setting URL
+            setTimeout(() => playAudio(fullAudioUrl), 500);
+        } else {
+            console.warn("⚠️ No audio URL in response");
         }
-      } catch (error) {
-        console.error("Error accessing camera:", error);
-      }
+        } catch (error) {
+            console.error("Error fetching description:", error);
+        }
     };
 
-    startCamera();
-
-    return () => {
-      if (videoRef.current?.srcObject) {
-        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-      }
+    // 🔊 Function to Play Audio
+    const playAudio = (url) => {
+        if (audioRef.current) {
+            audioRef.current.src = url;
+            audioRef.current.play().catch(err => console.error("Error playing audio:", err));
+        }
     };
-  }, []);
 
-  // 🖼️ Capture Frame and Convert to Base64
-  const captureFrame = () => {
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
+    // 🔥 Send Image to Backend for Nearby Object Detection
+    const checkForNearbyObjects = async () => {
+        const frame = captureFrame();
+        if (!frame) return;
 
-    if (!canvas || !video) return;
+        try {
+            const response = await fetch("/api/checkForNearBy", {  // Call Flask API
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ frame }),
+            });
 
-    const context = canvas.getContext("2d");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+            const data = await response.json();
 
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    
-    const imageData = canvas.toDataURL("image/jpeg");
-    return imageData.split(",")[1];
-  };
+            if (data.nearByObject) {
+                setDescription(data.objectDescription);
+                if (data.isDanger) {
+                    alert("⚠️ Warning: An object is too close! " + data.objectDescription);
+                }
+            } 
+        } catch (error) {
+            console.error("Error detecting nearby objects:", error);
+        }
+    };
 
-  // 🔥 Send Image to Backend for Scene Description
-  const describeScene = async () => {
-    const frame = captureFrame();
-    if (!frame) return alert("Failed to capture frame.");
+    // ⏳ Start Monitoring (Runs Both APIs Every 4 Seconds)
+    useEffect(() => {
+        let interval;
+        if (isMonitoring) {
+            interval = setInterval(() => {
+                checkForNearbyObjects();
+            }, 4000);
+        } else {
+            clearInterval(interval);
+        }
+        return () => clearInterval(interval);
+    }, [isMonitoring]);
 
-    setLoading(true); // Set loading to true when the request starts
+    return (
+        <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
+            <h1 className="text-lg font-semibold mb-4">Live Camera Stream</h1>
+            
+            <video ref={videoRef} autoPlay playsInline className="w-full max-h-[80vh] rounded-lg" />
+            <canvas ref={canvasRef} className="hidden" /> {/* Used for capturing frames */}
 
-    try {
-      const response = await fetch(`/api/describe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ frame }),
-      });
+            {/* Button to Describe Scene Manually */}
+            <button
+                onClick={describeScene}
+                className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-md"
+            >
+                Describe Scene
+            </button>
 
-      const data = await response.json();
-      console.log("Backend response:", data);
+            {/* Button to Start/Stop Automatic Scanning */}
+            <button
+                onClick={() => setIsMonitoring(!isMonitoring)}
+                className={`mt-4 px-4 py-2 rounded-md ${isMonitoring ? "bg-red-500" : "bg-green-500"} text-white`}
+            >
+                {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
+            </button>
 
-      setDescription(data.sceneDescription);
+            {/* Audio Element for Playback */}
+            <audio ref={audioRef} className="hidden" />
 
-      // Fetch the audio file as a blob
-      const audioResponse = await fetch(data.audioUrl);
-      const audioBlob = await audioResponse.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
+            {/* Button to Play Audio (Only shows if audioUrl is available) */}
+            {audioUrl && (
+                <button onClick={() => playAudio(audioUrl)} className="mt-4 bg-green-500 text-white px-4 py-2 rounded-md">
+                    🔊 Play Description
+                </button>
+            )}
 
-      console.log("Audio URL:", audioUrl);
-
-      // Play the audio file using the Object URL
-      const audio = new Audio(audioUrl);
-      audio.play();
-    } catch (error) {
-      console.error("Error fetching description:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-900 text-white">
-      <h1 className="text-lg font-semibold mb-4">Live Camera Stream</h1>
-      
-      <video ref={videoRef} autoPlay playsInline className="w-full max-h-[80vh] rounded-lg" />
-      <canvas ref={canvasRef} className="hidden" />
-
-      <button
-        onClick={describeScene}
-        className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-md"
-        style={{ position: 'relative' }}
-      >
-        {loading ? "Loading..." : "Describe Scene"}
-      </button>
-
-      {description && (
-        <div className="mt-4 bg-gray-800 p-4 rounded-lg">
-          <p>{description}</p>
+            {/* Show Description */}
+            {description && (
+                <div className="mt-4 bg-gray-800 p-4 rounded-lg">
+                    <p>{description}</p>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default CameraStream;

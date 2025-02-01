@@ -3,13 +3,14 @@ import torch
 import cv2
 import numpy as np
 import base64
-import openai
+# import openai
 import os
 from io import BytesIO
 from PIL import Image
 from dotenv import load_dotenv
 from openai import OpenAI
 from pathlib import Path
+from flask import send_from_directory
 
 # Load environment variables
 load_dotenv()
@@ -41,7 +42,7 @@ def estimate_depth(image):
         mode='bicubic',
         align_corners=False
     ).squeeze()
-    return depth.cpu().numpy()
+    return depth.detach().cpu().numpy()
 
 
 def decode_image(base64_string):
@@ -87,20 +88,67 @@ def get_nearby_object(image, objects, threshold=float('inf')):
     return nearby_object if min_depth < threshold else None 
 
 
+# def generate_description(objects):
+#     # Initialize OpenAI client
+#     client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    
+#     if not objects:
+#         return "No objects detected."
+    
+#     # Create a list of object descriptions
+#     object_descriptions = [f"{obj['name']} is in the scene." for obj in objects]
+#     # Formulate the prompt for the AI
+#     prompt = "Describe the scene in a detailed yet concise way, left to right order:\n" + "\n".join(object_descriptions)
+    
+#     try:
+#         # Generate text description using OpenAI's ChatCompletion
+#         completion = client.chat.completions.create(
+#             model="gpt-4o",
+#             messages=[
+#                 {"role": "system", "content": "You are a helpful AI."},
+#                 {"role": "user", "content": prompt}
+#             ]
+#         )
+        
+#         # Extract the generated description
+#         description = completion.choices[0].message.content.strip()
+        
+#         # Define the path for the output audio file
+#         speech_file_path = Path(__file__).parent / "speech.mp3"
+#         print("Generated speech file path:", speech_file_path)
+        
+#         # Generate speech from the description using OpenAI's TTS
+#         response = client.audio.speech.create(
+#             model="tts-1",
+#             voice="alloy",
+#             input=description
+#         )
+        
+#         # Stream the audio response to a file
+#         response.stream_to_file(speech_file_path)
+        
+#         return str(speech_file_path)
+#     except Exception as e:
+#         print("Error generating description or speech:", e)
+#         return f"Error generating description or speech: {e}"
+
+
+
 def generate_description(objects):
     # Initialize OpenAI client
-    client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+    
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
     
     if not objects:
         return "No objects detected."
     
-    # Create a list of object descriptions
     object_descriptions = [f"{obj['name']} is in the scene." for obj in objects]
-    # Formulate the prompt for the AI
     prompt = "Describe the scene in a detailed yet concise way, left to right order:\n" + "\n".join(object_descriptions)
     
     try:
-        # Generate text description using OpenAI's ChatCompletion
+        static_dir = Path(__file__).parent / "static"
+        static_dir.mkdir(parents=True, exist_ok=True) 
+
         completion = client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -109,28 +157,25 @@ def generate_description(objects):
             ]
         )
         
-        # Extract the generated description
         description = completion.choices[0].message.content.strip()
         
-        # Define the path for the output audio file
-        speech_file_path = Path(__file__).parent / "speech.mp3"
-        print("Generated speech file path:", speech_file_path)
+        # Save the audio file inside the 'static' folder
+        speech_file_path = Path(__file__).parent / "static" / "speech.mp3"
         
-        # Generate speech from the description using OpenAI's TTS
         response = client.audio.speech.create(
             model="tts-1",
             voice="alloy",
             input=description
         )
         
-        # Stream the audio response to a file
         response.stream_to_file(speech_file_path)
         
-        return str(speech_file_path)
+        # Return the public URL of the audio file
+        return {"description": description, "audio_url": f"/static/speech.mp3"}
     except Exception as e:
         print("Error generating description or speech:", e)
-        return f"Error generating description or speech: {e}"
-
+        return {"error": f"Error generating description or speech: {e}"}
+    
 
 @app.route('/api/checkForNearBy/', methods=['POST'])
 def check_for_nearby():
@@ -164,6 +209,9 @@ def describe_scene():
     return jsonify({
         "sceneDescription": scene_description
     })
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
 
 
 if __name__ == '__main__':
