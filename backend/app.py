@@ -102,13 +102,13 @@ def generate_description(objects):
     if not objects:
         return "No objects detected."
     
-    object_descriptions = [f"{obj['name']} is in the in front of the user at {(obj['xmin'] + obj['xmax']) / 2.0} X {(obj['ymin'] + obj['ymax']) / 2.0} Y coordinate with a distance of {obj['median_depth']}." for obj in objects]
+    object_descriptions = [f"{obj['name']} is in the in front of the user at {(obj['xmin'] + obj['xmax']) / 2.0} X {(obj['ymin'] + obj['ymax']) / 2.0} Y coordinate with a distance of {obj['median_depth']} (use this information for qualitative descriptions)." for obj in objects]
     prompt = '''You are a helpful assistant for visually impaired users. You are given a set of objects detected in a scene, along with their approximate X and Y coordinates and relative distances from the camera.
 
         Your task:
 
         Create a clear, concise, and auditory-friendly description of the scene in front of the user that can help the user build a mental picture.
-        Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects.  Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions :\n''' 
+        Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects.  Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions. don't specify quantitatif distance of the object: \n''' 
     
     prompt += '\n'.join(map(str, object_descriptions))
     
@@ -147,7 +147,7 @@ def generate_immediate_description(objects):
         return "No objects detected."
 
     object_descriptions = [
-            f"{obj['name']} is in the in front of the user at {(obj['xmin'] + obj['xmax']) / 2.0} X {(obj['ymin'] + obj['ymax']) / 2.0} Y coordinate with a distance of {obj['median_depth']}."
+            f"{obj['name']} is in the in front of the user at {(obj['xmin'] + obj['xmax']) / 2.0} X {(obj['ymin'] + obj['ymax']) / 2.0} Y coordinate with a distance of {obj['median_depth']} (use this information for qualitative descriptions)."
             for obj in objects
         ]
     
@@ -155,9 +155,9 @@ def generate_immediate_description(objects):
     prompt = '''You are a helpful assistant for visually impaired users. You are given a set of objects detected in front of the user, along with their approximate X and Y coordinates and relative distances from the camera.
 
     Your task:
-
     Create a clear, concise, and auditory-friendly description of the nearest object first to warn the user and the scene that can help the user build a mental picture.
-    Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects. Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions :\n''' 
+    Provide a safe path to guide the user and avoid obstacles. 
+    Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects. Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions. don't specify quantitatif distance of the object :\n''' 
     prompt += '\n'.join(map(str, object_descriptions))
     
     try:
