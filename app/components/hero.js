@@ -21,8 +21,8 @@ export default function LandingPage() {
       <header className="absolute inset-x-0 top-0 z-50">
         <nav className="flex items-center justify-between px-6 py-5 lg:px-8">
           <div className="flex lg:flex-1">
-            <a href="#" className="-m-1.5 p-1.5">
-              <span className="sr-only">AYN</span>
+            <a href="#" className="flex items-center -m-1.5 p-1.5">
+              {/* Logo Image */}
               <Image
                 src="/logo.png" 
                 alt="AYN Logo"
@@ -30,6 +30,10 @@ export default function LandingPage() {
                 height={50}
                 className="h-12 w-auto"
               />
+              {/* Stylish AYN text with RGB color */}
+              <span className="ml-2 text-2xl font-extrabold tracking-wide text-[rgb(210,215,232)]">
+                AYN
+              </span>
             </a>
           </div>
           <div className="hidden lg:flex lg:gap-x-10">
@@ -59,13 +63,17 @@ export default function LandingPage() {
           <div className="fixed inset-0 z-50 bg-gray-800 bg-opacity-50" />
           <DialogPanel className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-gray-900 px-6 py-6 sm:max-w-sm">
             <div className="flex items-center justify-between">
-              <a href="#" className="-m-1.5 p-1.5">
+              <a href="#" className="flex items-center -m-1.5 p-1.5">
                 <Image
                   src="/logo.png"
                   alt="AYN Logo"
                   width={50} 
                   height={50} 
+                  className="h-12 w-auto"
                 />
+                <span className="ml-2 text-2xl font-extrabold tracking-wide text-[rgb(210,215,232)]">
+                  AYN
+                </span>
               </a>
               <button
                 type="button"
@@ -91,8 +99,7 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-            {/* Hero Section */}
-            <div className="relative overflow-hidden flex flex-col items-center justify-center h-screen text-center">
+      <div className="relative overflow-hidden flex flex-col items-center justify-center h-screen text-center">
         {/* Background Image (Necklace on the Right) */}
         <div className="">
           <Image
