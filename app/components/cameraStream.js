@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
-import Loader from "./ui/loader"
+import Loader from "./ui/loader";
 
 const CameraStream = () => {
     const videoRef = useRef(null);
@@ -11,7 +11,7 @@ const CameraStream = () => {
     const [audioContent, setAudioContent] = useState(null);
     const [isMonitoring, setIsMonitoring] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [isAudioPlaying, setIsAudioPlaying] = useState(false); // New state to track audio playing
+    // No longer toggling one button; we use separate Play and Pause controls.
 
     useEffect(() => {
         const startCamera = async () => {
@@ -46,10 +46,11 @@ const CameraStream = () => {
         };
     }, []);
 
-    // Effect to handle audio end event
+    // Reset state when audio ends.
     useEffect(() => {
         if (audioRef.current) {
-            const handleAudioEnd = () => setIsAudioPlaying(false);
+            const handleAudioEnd = () => {
+            };
             audioRef.current.addEventListener('ended', handleAudioEnd);
             return () => {
                 audioRef.current.removeEventListener('ended', handleAudioEnd);
@@ -77,6 +78,7 @@ const CameraStream = () => {
     };
 
     const describeScene = async () => {
+        setAudioContent(null);
         const frame = captureFrame();
         if (!frame) return alert("Failed to capture frame.");
 
@@ -111,18 +113,13 @@ const CameraStream = () => {
             if (audioRef.current.src !== content) {
                 audioRef.current.src = content;
             }
-            audioRef.current.play()
-                .then(() => {
-                    setIsAudioPlaying(true);
-                })
-                .catch(err => console.error("Error playing audio:", err));
+            audioRef.current.play().catch(err => console.error("Error playing audio:", err));
         }
     };
 
     const pauseAudio = () => {
         if (audioRef.current) {
             audioRef.current.pause();
-            setIsAudioPlaying(false);
         }
     };
 
@@ -135,30 +132,110 @@ const CameraStream = () => {
                 <canvas ref={canvasRef} className="hidden" />
             </div>
 
-            <div className="mt-6 flex flex-col sm:flex-row gap-4">
-                <button
-                    onClick={describeScene}
-                    className="px-6 py-3 rounded-lg font-semibold bg-indigo-600 hover:bg-indigo-500 transition-all flex items-center justify-center gap-2"
-                    disabled={loading}
-                >
-                    {loading ? <Loader className="w-5 h-5 animate-spin" /> : "Describe Scene"}
-                </button>
+            {/* Action buttons: Describe Scene and Start/Stop Monitoring */}
+            <div className="mt-6 flex flex-col sm:flex-row gap-6">
+                {/* Describe Scene button with icon and label */}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={describeScene}
+                        disabled={loading}
+                        className="w-12 h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-gray-300 to-gray-500 border border-gray-400 shadow-lg hover:from-gray-400 hover:to-gray-600 transition"
+                    >
+                        {loading ? (
+                            <Loader className="w-5 h-5" />
+                        ) : (
+                            // Example icon: a chat bubble icon
+                            <svg
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                className="text-black"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <path d="M4 2h16a2 2 0 012 2v14a2 2 0 01-2 2H8l-4 4V4a2 2 0 012-2z" />
+                            </svg>
+                        )}
+                    </button>
+                    <span className="text-xl font-semibold">Describe Scene</span>
+                </div>
 
-                <button
-                    onClick={() => setIsMonitoring(!isMonitoring)}
-                    className={`px-6 py-3 rounded-lg font-semibold transition-all ${isMonitoring ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"}`}
-                >
-                    {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
-                </button>
+                {/* Start/Stop Monitoring button with icon and label */}
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsMonitoring(!isMonitoring)}
+                        className="w-12 h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-gray-300 to-gray-500 border border-gray-400 shadow-lg hover:from-gray-400 hover:to-gray-600 transition"
+                    >
+                        {isMonitoring ? (
+                            // Icon for Stop Monitoring (a square)
+                            <svg
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                className="text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <rect x="6" y="6" width="12" height="12" />
+                            </svg>
+                        ) : (
+                            // Icon for Start Monitoring (a circle)
+                            <svg
+                                width="24"
+                                height="24"
+                                viewBox="0 0 24 24"
+                                fill="currentColor"
+                                className="text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <circle cx="12" cy="12" r="10" />
+                            </svg>
+                        )}
+                    </button>
+                    <span className="text-xl font-semibold">
+                        {isMonitoring ? "Stop Monitoring" : "Start Monitoring"}
+                    </span>
+                </div>
             </div>
 
-            {audioContent && (
-                <button
-                    onClick={() => isAudioPlaying ? pauseAudio() : playAudio(audioContent)}
-                    className="mt-4 px-6 py-3 rounded-lg font-semibold bg-blue-600 hover:bg-blue-500 transition-all"
-                >
-                    {isAudioPlaying ? "Pause Description" : "Play Description"}
-                </button>
+            {/* Audio Controls: Two circular buttons for Play and Pause.
+                They are rendered only if audioContent exists and not currently loading. */}
+            {audioContent && !loading && (
+                <div className="mt-6 flex gap-6">
+                    {/* Play Button */}
+                    <button
+                        onClick={() => playAudio(audioContent)}
+                        className="w-12 h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-gray-300 to-gray-500 border border-gray-400 shadow-lg hover:from-gray-400 hover:to-gray-600 transition"
+                    >
+                        {/* Black triangle play icon */}
+                        <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="black"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <polygon points="8,5 19,12 8,19" />
+                        </svg>
+                    </button>
+                    {/* Pause Button */}
+                    <button
+                        onClick={pauseAudio}
+                        className="w-12 h-12 flex items-center justify-center rounded-full bg-gradient-to-br from-gray-300 to-gray-500 border border-gray-400 shadow-lg hover:from-gray-400 hover:to-gray-600 transition"
+                    >
+                        {/* Two vertical white rectangles pause icon */}
+                        <svg
+                            width="24"
+                            height="24"
+                            viewBox="0 0 24 24"
+                            fill="white"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <rect x="6" y="5" width="4" height="14" />
+                            <rect x="14" y="5" width="4" height="14" />
+                        </svg>
+                    </button>
+                </div>
             )}
 
             {description && (
