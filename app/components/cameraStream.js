@@ -5,24 +5,29 @@ import Loader from "./ui/loader"
 const CameraStream = () => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+    const audioRef = useRef(null);
+
     const [description, setDescription] = useState("");
     const [audioContent, setAudioContent] = useState(null);
     const [isMonitoring, setIsMonitoring] = useState(false);
     const [loading, setLoading] = useState(false);
-    const audioRef = useRef(null);
+    const [isAudioPlaying, setIsAudioPlaying] = useState(false); // New state to track audio playing
 
     useEffect(() => {
         const startCamera = async () => {
+            // Check if the browser supports camera access
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 console.error("Camera not supported in this browser.");
                 return;
             }
 
             try {
+                // Request access to the camera
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: "environment" },
                 });
 
+                // Set the video stream to the video element
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                 }
@@ -33,6 +38,7 @@ const CameraStream = () => {
 
         startCamera();
 
+        // Cleanup function to stop the camera when the component unmounts
         return () => {
             if (videoRef.current?.srcObject) {
                 videoRef.current.srcObject.getTracks().forEach(track => track.stop());
@@ -40,18 +46,32 @@ const CameraStream = () => {
         };
     }, []);
 
+    // Effect to handle audio end event
+    useEffect(() => {
+        if (audioRef.current) {
+            const handleAudioEnd = () => setIsAudioPlaying(false);
+            audioRef.current.addEventListener('ended', handleAudioEnd);
+            return () => {
+                audioRef.current.removeEventListener('ended', handleAudioEnd);
+            };
+        }
+    }, []);
+
     const captureFrame = () => {
         const canvas = canvasRef.current;
         const video = videoRef.current;
 
+        // Ensure both canvas and video elements are available
         if (!canvas || !video) return null;
 
         const context = canvas.getContext("2d");
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
+        // Draw the current video frame onto the canvas
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
+        // Convert the canvas image to a base64 string
         const imageData = canvas.toDataURL("image/jpeg");
         return imageData.split(",")[1];
     };
@@ -63,6 +83,7 @@ const CameraStream = () => {
         setLoading(true);
 
         try {
+            // Send the captured frame to the server for description
             const response = await fetch("/api/describe", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -87,13 +108,26 @@ const CameraStream = () => {
 
     const playAudio = (content) => {
         if (audioRef.current) {
-            audioRef.current.src = content;
-            audioRef.current.play().catch(err => console.error("Error playing audio:", err));
+            if (audioRef.current.src !== content) {
+                audioRef.current.src = content;
+            }
+            audioRef.current.play()
+                .then(() => {
+                    setIsAudioPlaying(true);
+                })
+                .catch(err => console.error("Error playing audio:", err));
+        }
+    };
+
+    const pauseAudio = () => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            setIsAudioPlaying(false);
         }
     };
 
     return (
-        <div className="relative  text-white min-h-screen flex flex-col items-center justify-center p-6">
+        <div className="relative text-white min-h-screen flex flex-col items-center justify-center p-6">
             <h1 className="text-3xl font-bold mb-6">Live Camera Stream</h1>
             
             <div className="relative rounded-lg overflow-hidden shadow-lg border border-gray-700">
@@ -120,10 +154,10 @@ const CameraStream = () => {
 
             {audioContent && (
                 <button
-                    onClick={() => playAudio(audioContent)}
+                    onClick={() => isAudioPlaying ? pauseAudio() : playAudio(audioContent)}
                     className="mt-4 px-6 py-3 rounded-lg font-semibold bg-blue-600 hover:bg-blue-500 transition-all"
                 >
-                    🔊 Play Description
+                    {isAudioPlaying ? "Pause Description" : "Play Description"}
                 </button>
             )}
 
