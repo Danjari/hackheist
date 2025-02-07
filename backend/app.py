@@ -111,6 +111,7 @@ def generate_description(objects):
         Use spatial terms like "to the left," "to the right," "in front of," "behind," "closer," and "farther" to describe the layout and relationships between objects.  Avoid technical terms like "x/y-coordinates" or "depth values" and focus on intuitive descriptions. don't specify quantitatif distance of the object: \n''' 
     
     prompt += '\n'.join(map(str, object_descriptions))
+    print(prompt)
     
     try:
         completion = client.chat.completions.create(

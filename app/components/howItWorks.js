@@ -35,7 +35,7 @@ export default function HowItWorks() {
             controls
             className="rounded-xl w-full max-w-3xl shadow-lg"
           >
-            <source src="/test.mp4" type="video/mp4" />
+            <source src="./Nokia HackHeist Demo Video_compressed.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </video>
         </div>
